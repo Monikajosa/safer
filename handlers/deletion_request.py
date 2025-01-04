@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 import os
 import json
 from .utils import get_main_keyboard  # Sicherstellen, dass importiert wird
-from i18n_helpers import generate_i18n_object
 
 # Laden der Umgebungsvariablen aus der .env Datei
 load_dotenv()
@@ -13,7 +12,7 @@ load_dotenv()
 SUPPORT_GROUP_ID = os.getenv('SUPPORT_GROUP_ID')
 
 # Laden der gemeldeten Benutzer aus der JSON-Datei
-REPORTED_USERS_FILE = 'reported_users.json'
+REPORTED_USERS_FILE = 'structural_test/reported_users.json'
 
 def load_reported_users():
     try:
@@ -76,24 +75,22 @@ support_message_mapping = load_support_message_mapping()
 ticket_counter = load_ticket_counter()
 
 async def request_deletion(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    i18n = generate_i18n_object(update)
     # Erstellung des Abbrechen-Buttons
-    keyboard = [[KeyboardButton(i18n.translate("cancel"))]]
+    keyboard = [[KeyboardButton("Abbrechen")]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     
     await update.message.reply_text(
-        i18n.translate("enter_id_and_reason"),
+        "Bitte geben Sie die ID und den Grund für die Löschung in folgendem Format ein:\n\nID: Grund",
         reply_markup=reply_markup
     )
     return WAITING_FOR_DELETION_INFO
 
 async def receive_deletion_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    i18n = generate_i18n_object(update)
     global support_message_mapping  # Verwende die globale Zuordnung
 
     # Überprüfen, ob der Benutzer "Abbrechen" gewählt hat
-    if update.message.text.lower().strip() == i18n.translate("cancel").lower():
-        await update.message.reply_text(i18n.translate("deletion_request_cancelled"), reply_markup=get_main_keyboard())
+    if update.message.text.lower().strip() == "abbrechen":
+        await update.message.reply_text("Löschantrag abgebrochen.", reply_markup=get_main_keyboard())
         return ConversationHandler.END
 
     # Ticketzähler unmittelbar vor der Erstellung eines neuen Tickets laden
@@ -109,7 +106,7 @@ async def receive_deletion_info(update: Update, context: ContextTypes.DEFAULT_TY
     elif str(user_id) in reported_users['scammers']:
         status = 'Scammer'
 
-    support_message = i18n.translate("deletion_request_received").format(ticket_counter=ticket_counter, user_id=user_id, status=status, reason=reason)
+    support_message = f"Löschanfrage erhalten [Ticket #{ticket_counter}]:\nUser ID: {user_id}\nStatus: {status}\nBegründung: {reason}"
     sent_message = await context.bot.send_message(chat_id=SUPPORT_GROUP_ID, text=support_message)
     support_message_mapping[ticket_counter] = {
         'user_id': user_id,
@@ -123,11 +120,10 @@ async def receive_deletion_info(update: Update, context: ContextTypes.DEFAULT_TY
     ticket_counter += 1
     save_ticket_counter(ticket_counter)
     
-    await update.message.reply_text(i18n.translate("deletion_request_submitted").format(ticket_number=ticket_counter - 1), reply_markup=get_main_keyboard())
+    await update.message.reply_text(f"Ihr Löschantrag wurde als Ticket #{ticket_counter - 1} eingereicht.", reply_markup=get_main_keyboard())
     return ConversationHandler.END
 
 async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    i18n = generate_i18n_object(update)
     global support_message_mapping  # Verwende die globale Zuordnung
 
     user_id = update.effective_user.id
@@ -138,16 +134,15 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             break
 
     if open_ticket_number is not None:
-        support_message = i18n.translate("user_message_received").format(user_id=user_id, ticket_number=open_ticket_number, message=update.message.text)
+        support_message = f"Nachricht von Benutzer {user_id} [Ticket #{open_ticket_number}]:\n\n{update.message.text}"
         sent_message = await context.bot.send_message(chat_id=SUPPORT_GROUP_ID, text=support_message)
         support_message_mapping[open_ticket_number]['support_message_id'] = sent_message.message_id
         save_support_message_mapping(support_message_mapping)
     else:
-        await context.bot.send_message(chat_id=update.message.chat_id, text=i18n.translate("support_requests_only_via_button"))
+        await context.bot.send_message(chat_id=update.message.chat_id, text="Support-Anfragen können nur über den Button 'Löschung beantragen' eingereicht werden.")
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    i18n = generate_i18n_object(update)
-    await update.message.reply_text(i18n.translate("deletion_request_cancelled"), reply_markup=get_main_keyboard())
+    await update.message.reply_text("Löschantrag abgebrochen.", reply_markup=get_main_keyboard())
     return ConversationHandler.END
 
 deletion_conv_handler = ConversationHandler(
@@ -161,6 +156,5 @@ deletion_conv_handler = ConversationHandler(
 user_message_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_message)
 
 async def error_handler(update: Update, context: CallbackContext) -> None:
-    i18n = generate_i18n_object(update)
     logger.error(msg="Exception while handling an update:", exc_info=context.error)
-    await update.message.reply_text(i18n.translate("unexpected_error_occurred"))
+    await update.message.reply_text("Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.")
