@@ -1,6 +1,5 @@
 import json
 from telegram import KeyboardButton, ReplyKeyboardMarkup
-from i18n_helpers import generate_i18n_object
 
 def load_data():
     try:
@@ -22,11 +21,11 @@ def save_data(reported_users):
     except Exception as e:
         print("DEBUG: Fehler beim Speichern der Daten:", e)  # Debug-Ausgabe
 
-def get_main_keyboard(i18n):
+def get_main_keyboard():
     keyboard = [
-        [KeyboardButton(i18n.translate("report_scammer")), KeyboardButton(i18n.translate("report_trust"))],
-        [KeyboardButton(i18n.translate("check_user"))],
-        [KeyboardButton(i18n.translate("request_deletion"))]
+        [KeyboardButton("Scammer melden"), KeyboardButton("Trust melden")],
+        [KeyboardButton("User prüfen")],
+        [KeyboardButton("Löschung beantragen")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
