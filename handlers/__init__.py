@@ -1,4 +1,3 @@
-# handlers/__init__.py
 from .start import start
 from .main_menu import handle_main_menu
 from .report import user_selected, receive_full_name, receive_username, receive_reason, handle_update_choice, cancel
