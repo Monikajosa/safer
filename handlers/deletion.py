@@ -1,7 +1,6 @@
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 from .utils import save_data, load_data, get_main_keyboard
-from i18n_helpers import generate_i18n_object
 import logging
 import os
 from dotenv import load_dotenv
@@ -15,11 +14,10 @@ logger = logging.getLogger(__name__)
 WAITING_FOR_DELETION_INFO = range(1)
 
 async def delete_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    i18n = generate_i18n_object(update)
     try:
         user_id = update.effective_user.id
         if str(user_id) != OWNER_ID:
-            await update.message.reply_text(i18n.translate("no_permission_for_action"))
+            await update.message.reply_text("Sie haben keine Berechtigung, diese Aktion auszuführen.")
             return
 
         command, user_id_to_delete = update.message.text.split()
@@ -39,17 +37,16 @@ async def delete_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
         if user_deleted:
             save_data(reported_users)  # Speichern Sie die aktualisierten Daten
-            await update.message.reply_text(i18n.translate("user_deleted_successfully").format(user_id_to_delete=user_id_to_delete))
-            logger.info(i18n.translate("log_user_deleted_successfully").format(user_id_to_delete=user_id_to_delete))
+            await update.message.reply_text(f"Benutzer {user_id_to_delete} wurde erfolgreich aus den Listen gelöscht.")
+            logger.info(f"Benutzer {user_id_to_delete} wurde erfolgreich gelöscht.")
         else:
-            await update.message.reply_text(i18n.translate("user_id_not_found"))
-            logger.info(i18n.translate("log_user_id_not_found").format(user_id_to_delete=user_id_to_delete))
+            await update.message.reply_text("Benutzer-ID nicht in den Listen gefunden.")
+            logger.info(f"Benutzer-ID {user_id_to_delete} nicht in den Listen gefunden.")
     except ValueError:
-        await update.message.reply_text(i18n.translate("invalid_format_use_del"))
-        logger.error(i18n.translate("log_invalid_format_for_del"))
+        await update.message.reply_text("Ungültiges Format. Bitte verwenden Sie /del <user_id>.")
+        logger.error("Ungültiges Format für /del Befehl.")
 
 async def receive_deletion_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    i18n = generate_i18n_object(update)
     user_id_to_delete = update.message.text.strip()
     reported_users = load_data()  # Laden Sie die aktuellen Daten
     user_deleted = False
@@ -64,12 +61,12 @@ async def receive_deletion_info(update: Update, context: ContextTypes.DEFAULT_TY
 
     if user_deleted:
         save_data(reported_users)  # Speichern Sie die aktualisierten Daten
-        await update.message.reply_text(i18n.translate("user_deleted_successfully").format(user_id_to_delete=user_id_to_delete),
+        await update.message.reply_text(f"Benutzer {user_id_to_delete} wurde erfolgreich aus den Listen gelöscht.",
                                         reply_markup=get_main_keyboard())
-        logger.info(i18n.translate("log_user_deleted_successfully").format(user_id_to_delete=user_id_to_delete))
+        logger.info(f"Benutzer {user_id_to_delete} wurde erfolgreich gelöscht.")
     else:
-        await update.message.reply_text(i18n.translate("user_id_not_found"),
+        await update.message.reply_text("Benutzer-ID nicht in den Listen gefunden.",
                                         reply_markup=get_main_keyboard())
-        logger.info(i18n.translate("log_user_id_not_found").format(user_id_to_delete=user_id_to_delete))
+        logger.info(f"Benutzer-ID {user_id_to_delete} nicht in den Listen gefunden.")
     
     return ConversationHandler.END
