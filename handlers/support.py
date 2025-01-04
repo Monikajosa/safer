@@ -4,7 +4,6 @@ from telegram.ext import ContextTypes, CallbackContext, ConversationHandler, Com
 from dotenv import load_dotenv
 import os
 import json
-from i18n_helpers import generate_i18n_object
 from .utils import get_main_keyboard  # Sicherstellen, dass importiert wird
 
 # Laden der Umgebungsvariablen aus der .env Datei
@@ -76,7 +75,6 @@ support_message_mapping = load_support_message_mapping()
 ticket_counter = load_ticket_counter()
 
 async def handle_support_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    i18n = generate_i18n_object(update)
     global support_message_mapping  # Verwende die globale Zuordnung
 
     if update.message.chat_id == int(SUPPORT_GROUP_ID):
@@ -100,12 +98,12 @@ async def handle_support_message(update: Update, context: ContextTypes.DEFAULT_T
                     if update.message.text.lower().strip() == "end":
                         del support_message_mapping[ticket_number]
                         save_support_message_mapping(support_message_mapping)  # Speichern der Änderungen
-                        await context.bot.send_message(chat_id=original_user_id, text=i18n.translate("ticket_closed").format(ticket_number=ticket_number))
+                        await context.bot.send_message(chat_id=original_user_id, text=f"Dein Ticket #{ticket_number} wurde geschlossen. Für weitere Anliegen bitte eine neue Anfrage stellen.")
                     break
             else:
-                await context.bot.send_message(chat_id=update.message.chat_id, text=i18n.translate("no_associated_support_request_found"))
+                await context.bot.send_message(chat_id=update.message.chat_id, text="Keine zugeordnete Support-Anfrage gefunden.")
         else:
-            await context.bot.send_message(chat_id=update.message.chat_id, text=i18n.translate("no_associated_support_request_found"))
+            await context.bot.send_message(chat_id=update.message.chat_id, text="Keine zugeordnete Support-Anfrage gefunden.")
     else:
         # Überprüfen, ob der Benutzer ein offenes Ticket hat
         user_id = update.effective_user.id
@@ -117,24 +115,22 @@ async def handle_support_message(update: Update, context: ContextTypes.DEFAULT_T
 
         if open_ticket_number:
             # Nachricht an die Support-Gruppe weiterleiten als Antwort auf das offene Ticket
-            support_message = i18n.translate("user_message_received").format(user_id=user_id, ticket_number=open_ticket_number, message=update.message.text)
+            support_message = f"Nachricht von Benutzer {user_id} [Ticket #{open_ticket_number}]:\n\n{update.message.text}"
             sent_message = await context.bot.send_message(chat_id=SUPPORT_GROUP_ID, text=support_message)
             # Aktualisiere die support_message_id mit der neuesten Nachricht
             support_message_mapping[open_ticket_number]['support_message_id'] = sent_message.message_id
             save_support_message_mapping(support_message_mapping)
         else:
-            await context.bot.send_message(chat_id=update.message.chat_id, text=i18n.translate("support_requests_only_via_button"))
+            await context.bot.send_message(chat_id=update.message.chat_id, text="Support-Anfragen können nur über den Button 'Löschung beantragen' eingereicht werden.")
 
 async def request_deletion(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    i18n = generate_i18n_object(update)
     await update.message.reply_text(
-        i18n.translate("enter_id_and_reason"),
+        "Bitte geben Sie die ID und den Grund für die Löschung in folgendem Format ein:\n\nID: Grund",
         reply_markup=ReplyKeyboardRemove()
     )
     return WAITING_FOR_DELETION_INFO
 
 async def receive_deletion_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    i18n = generate_i18n_object(update)
     global support_message_mapping  # Verwende die globale Zuordnung
 
     # Ticketzähler unmittelbar vor der Erstellung eines neuen Tickets laden
@@ -150,7 +146,7 @@ async def receive_deletion_info(update: Update, context: ContextTypes.DEFAULT_TY
     elif str(user_id) in reported_users['scammers']:
         status = 'Scammer'
 
-    support_message = i18n.translate("deletion_request_received").format(ticket_counter=ticket_counter, user_id=user_id, status=status, reason=reason)
+    support_message = f"Löschanfrage erhalten [Ticket #{ticket_counter}]:\nUser ID: {user_id}\nStatus: {status}\nBegründung: {reason}"
     sent_message = await context.bot.send_message(chat_id=SUPPORT_GROUP_ID, text=support_message)
     support_message_mapping[ticket_counter] = {
         'user_id': user_id,
@@ -164,11 +160,10 @@ async def receive_deletion_info(update: Update, context: ContextTypes.DEFAULT_TY
     ticket_counter += 1
     save_ticket_counter(ticket_counter)
     
-    await update.message.reply_text(i18n.translate("deletion_request_submitted").format(ticket_number=ticket_counter - 1), reply_markup=get_main_keyboard(i18n))
+    await update.message.reply_text(f"Ihr Löschantrag wurde als Ticket #{ticket_counter - 1} eingereicht.", reply_markup=get_main_keyboard())
     return ConversationHandler.END
 
 async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    i18n = generate_i18n_object(update)
     global support_message_mapping  # Verwende die globale Zuordnung
 
     user_id = update.effective_user.id
@@ -179,16 +174,15 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             break
 
     if open_ticket_number is not None:
-        support_message = i18n.translate("user_message_received").format(user_id=user_id, ticket_number=open_ticket_number, message=update.message.text)
+        support_message = f"Nachricht von Benutzer {user_id} [Ticket #{open_ticket_number}]:\n\n{update.message.text}"
         sent_message = await context.bot.send_message(chat_id=SUPPORT_GROUP_ID, text=support_message)
         support_message_mapping[open_ticket_number]['support_message_id'] = sent_message.message_id
         save_support_message_mapping(support_message_mapping)
     else:
-        await context.bot.send_message(chat_id=update.message.chat_id, text=i18n.translate("support_requests_only_via_button"))
+        await context.bot.send_message(chat_id=update.message.chat_id, text="Support-Anfragen können nur über den Button 'Löschung beantragen' eingereicht werden.")
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    i18n = generate_i18n_object(update)
-    await update.message.reply_text(i18n.translate("deletion_request_cancelled"), reply_markup=get_main_keyboard(i18n))
+    await update.message.reply_text("Löschantrag abgebrochen.", reply_markup=get_main_keyboard())
     return ConversationHandler.END
 
 deletion_conv_handler = ConversationHandler(
@@ -202,6 +196,5 @@ deletion_conv_handler = ConversationHandler(
 user_message_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_message)
 
 async def error_handler(update: Update, context: CallbackContext) -> None:
-    i18n = generate_i18n_object(update)
-    logger.error(msg=i18n.translate("exception_while_handling_update"), exc_info=context.error)
-    await update.message.reply_text(i18n.translate("unexpected_error_occurred"))
+    logger.error(msg="Exception while handling an update:", exc_info=context.error)
+    await update.message.reply_text("Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.")
